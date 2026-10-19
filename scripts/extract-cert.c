@@ -21,7 +21,9 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
+#endif
 
 /*
  * OpenSSL 3.0 deprecates the OpenSSL's ENGINE API.
@@ -56,7 +58,7 @@ static void display_openssl_errors(int l)
 	}
 }
 
-static void drain_openssl_errors(void)
+static __attribute__((unused)) void drain_openssl_errors(void)
 {
 	const char *file;
 	int line;
@@ -119,6 +121,10 @@ int main(int argc, char **argv)
 		fclose(f);
 		exit(0);
 	} else if (!strncmp(cert_src, "pkcs11:", 7)) {
+#ifdef OPENSSL_NO_ENGINE
+		/* BoringSSL (AOSP kernel-build-tools) has no ENGINE API */
+		ERR(1, "PKCS#11 is not supported without the OpenSSL ENGINE API");
+#else
 		ENGINE *e;
 		struct {
 			const char *cert_id;
@@ -141,6 +147,7 @@ int main(int argc, char **argv)
 		ENGINE_ctrl_cmd(e, "LOAD_CERT_CTRL", 0, &parms, NULL, 1);
 		ERR(!parms.cert, "Get X.509 from PKCS#11");
 		write_cert(parms.cert);
+#endif
 	} else {
 		BIO *b;
 		X509 *x509;
